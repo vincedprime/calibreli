@@ -13,15 +13,28 @@
 * Build & Deployment: **Vite**, hosted on **GitHub Pages**
 
 **Data Storage**
-* Purely frontend; data is **local in browser** using:
-  * `LocalStorage` for persisting user PTO plans
-  * Optional: `JSON` for importing/exporting PTO plans
+* Purely frontend; No datastore is needed
 
 **High-Level Flow**
 1. User inputs PTO details and other preferences - time range, company/national holidays.
 2. System calculates optimized schedule.
-3. Generated schedule is displayed interactively.
-4. User can export or save schedule locally.
+3. Generated schedule is displayed interactively:
+## Examples
+- **Oct 11 – Oct 13**  
+  - Total: 3 days off  
+  - Uses 1 PTO day + 2 weekends  
+  - Classified as a *Long Weekend*  
+
+- **Nov 8 – Nov 16**  
+  - Total: 9 days off  
+  - Uses 5 PTO days + 1 public holiday + 4 weekends  
+  - Classified as a *Week Break*  
+
+- **Dec 20 – Dec 28**  
+  - Total: 9 days off  
+  - Uses 4 PTO days + 1 public holiday + 4 weekends  
+  - Classified as a *Week Break*  
+
 
 ## 3. Component Design
 ### 3.1 Input Form Component
@@ -58,8 +71,6 @@
 * **List View**: Shows date ranges for recommended leaves.
 * **Interactions**:
   * Hover for details
-  * Export to CSV / JSON
-  * Optional: Print-friendly view
 
 ### 3.4 Utility Components
 * **Date Picker**
@@ -71,11 +82,10 @@
 
 | Requirement                 | Implementation Detail               |
 | --------------------------- | ----------------------------------- |
-| Responsive UI               | Tailwind CSS, flexbox/grid layouts  |
+| Responsive UI               | shadcn/ui, flexbox/grid layouts  |
 | Fast Performance            | Frontend-only, optimized PTO engine |
 | Accessibility               | ARIA labels, semantic HTML          |
 | Cross-browser compatibility | Chrome, Firefox, Edge, Safari       |
-| Local Persistence           | LocalStorage for offline use        |
 
 ## 5. Folder Structure
 
@@ -100,8 +110,6 @@ calibreli/
 ## 6. API Design
 
 * **No backend**; all computation is client-side.
-* Optional: `export/import` endpoints (if later integrating backend)
-* Local data persistence via `LocalStorage`.
 
 ## 7. PTO Calculation Logic (High-Level Algorithm)
 
