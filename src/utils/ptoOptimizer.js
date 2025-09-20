@@ -16,30 +16,25 @@ export const VACATION_STYLE_LABELS = {
  * Main PTO optimization function
  * @param {Object} params - Optimization parameters
  * @param {number} params.ptoDays - Number of PTO days available
- * @param {number} params.startMonth - Start month (0-11)
- * @param {number} params.endMonth - End month (0-11)
+ * @param {Date} params.startDate - Start date for planning period
+ * @param {Date} params.endDate - End date for planning period
  * @param {Date[]} params.holidays - Array of holiday dates
  * @param {Date[]} params.companyOffDays - Array of company off days
  * @param {string} params.vacationStyle - Vacation style preference
- * @param {number} params.year - Year for planning
  * @returns {Array} Array of optimized PTO recommendations
  */
 export function optimizePTO({
   ptoDays,
-  startMonth,
-  endMonth,
+  startDate,
+  endDate,
   holidays = [],
   companyOffDays = [],
-  vacationStyle = VACATION_STYLES.BALANCED_MIX,
-  year = new Date().getFullYear()
+  vacationStyle = VACATION_STYLES.BALANCED_MIX
 }) {
   // Input validation
   if (ptoDays <= 0) return [];
-  if (startMonth > endMonth) return [];
-
-  // Create date range
-  const startDate = startOfMonth(new Date(year, startMonth, 1));
-  const endDate = endOfMonth(new Date(year, endMonth, 1));
+  if (!startDate || !endDate) return [];
+  if (startDate >= endDate) return [];
   
   // Get all dates in range
   const allDates = eachDayOfInterval({ start: startDate, end: endDate });

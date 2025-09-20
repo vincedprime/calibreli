@@ -4,23 +4,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DatePicker, MultiDatePicker } from '@/components/ui/date-picker';
 import { Calendar, CalendarDays, Settings } from 'lucide-react';
 import { VACATION_STYLES, VACATION_STYLE_LABELS } from '@/utils/ptoOptimizer';
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
+import { addYears } from 'date-fns';
 
 export function InputForm({ onSubmit, isLoading }) {
   const [formData, setFormData] = useState({
     ptoDays: '',
-    startMonth: '',
-    endMonth: '',
+    startDate: null,
+    endDate: null,
     vacationStyle: VACATION_STYLES.BALANCED_MIX,
-    holidays: '',
-    companyOffDays: '',
-    year: new Date().getFullYear()
+    holidays: [],
+    companyOffDays: []
   });
 
   const [errors, setErrors] = useState({});
@@ -34,39 +30,19 @@ export function InputForm({ onSubmit, isLoading }) {
       newErrors.ptoDays = 'PTO days must be a positive number';
     }
 
-    // Validate months
-    if (formData.startMonth === '') {
-      newErrors.startMonth = 'Start month is required';
+    // Validate date range
+    if (!formData.startDate) {
+      newErrors.startDate = 'Start date is required';
     }
-    if (formData.endMonth === '') {
-      newErrors.endMonth = 'End month is required';
+    if (!formData.endDate) {
+      newErrors.endDate = 'End date is required';
     }
-    if (formData.startMonth !== '' && formData.endMonth !== '' && 
-        parseInt(formData.startMonth) > parseInt(formData.endMonth)) {
-      newErrors.endMonth = 'End month must be after start month';
+    if (formData.startDate && formData.endDate && formData.startDate >= formData.endDate) {
+      newErrors.endDate = 'End date must be after start date';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const parseDate = (dateStr) => {
-    if (!dateStr.trim()) return null;
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return null;
-      return date;
-    } catch {
-      return null;
-    }
-  };
-
-  const parseDates = (datesStr) => {
-    if (!datesStr.trim()) return [];
-    return datesStr
-      .split(',')
-      .map(d => parseDate(d.trim()))
-      .filter(d => d !== null);
   };
 
   const handleSubmit = (e) => {
@@ -74,17 +50,13 @@ export function InputForm({ onSubmit, isLoading }) {
     
     if (!validateForm()) return;
 
-    const holidays = parseDates(formData.holidays);
-    const companyOffDays = parseDates(formData.companyOffDays);
-
     const optimizationParams = {
       ptoDays: parseInt(formData.ptoDays),
-      startMonth: parseInt(formData.startMonth),
-      endMonth: parseInt(formData.endMonth),
-      holidays,
-      companyOffDays,
-      vacationStyle: formData.vacationStyle,
-      year: formData.year
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      holidays: formData.holidays,
+      companyOffDays: formData.companyOffDays,
+      vacationStyle: formData.vacationStyle
     };
 
     onSubmit(optimizationParams);
@@ -128,63 +100,38 @@ export function InputForm({ onSubmit, isLoading }) {
             )}
           </div>
 
-          {/* Year */}
-          <div className="space-y-2">
-            <Label htmlFor="year">Planning Year</Label>
-            <Input
-              id="year"
-              type="number"
-              min="2024"
-              max="2030"
-              value={formData.year}
-              onChange={(e) => handleInputChange('year', parseInt(e.target.value))}
-            />
-          </div>
-
-          {/* Time Range */}
+          {/* Planning Period */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startMonth">Start Month</Label>
-              <Select 
-                value={formData.startMonth} 
-                onValueChange={(value) => handleInputChange('startMonth', value)}
-              >
-                <SelectTrigger className={errors.startMonth ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select start month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((month, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {month}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.startMonth && (
-                <p className="text-sm text-red-500">{errors.startMonth}</p>
+              <Label htmlFor="startDate">Planning Start Date</Label>
+              <DatePicker
+                date={formData.startDate}
+                onDateChange={(date) => handleInputChange('startDate', date)}
+                placeholder="Select start date"
+                className={errors.startDate ? 'border-red-500' : ''}
+              />
+              {errors.startDate && (
+                <p className="text-sm text-red-500">{errors.startDate}</p>
               )}
+              <p className="text-sm text-muted-foreground">
+                Start of your planning period (e.g., beginning of fiscal year)
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endMonth">End Month</Label>
-              <Select 
-                value={formData.endMonth} 
-                onValueChange={(value) => handleInputChange('endMonth', value)}
-              >
-                <SelectTrigger className={errors.endMonth ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select end month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((month, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {month}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.endMonth && (
-                <p className="text-sm text-red-500">{errors.endMonth}</p>
+              <Label htmlFor="endDate">Planning End Date</Label>
+              <DatePicker
+                date={formData.endDate}
+                onDateChange={(date) => handleInputChange('endDate', date)}
+                placeholder="Select end date"
+                className={errors.endDate ? 'border-red-500' : ''}
+              />
+              {errors.endDate && (
+                <p className="text-sm text-red-500">{errors.endDate}</p>
               )}
+              <p className="text-sm text-muted-foreground">
+                End of your planning period
+              </p>
             </div>
           </div>
 
@@ -218,28 +165,28 @@ export function InputForm({ onSubmit, isLoading }) {
           {/* Holidays */}
           <div className="space-y-2">
             <Label htmlFor="holidays">National Holidays (optional)</Label>
-            <Input
-              id="holidays"
-              placeholder="e.g., 2024-07-04, 2024-11-28, 2024-12-25"
-              value={formData.holidays}
-              onChange={(e) => handleInputChange('holidays', e.target.value)}
+            <MultiDatePicker
+              dates={formData.holidays}
+              onDatesChange={(dates) => handleInputChange('holidays', dates)}
+              placeholder="Select national holidays"
+              maxDisplay={2}
             />
             <p className="text-sm text-muted-foreground">
-              Enter dates in YYYY-MM-DD format, separated by commas
+              Click to select multiple holiday dates from the calendar
             </p>
           </div>
 
           {/* Company Off Days */}
           <div className="space-y-2">
             <Label htmlFor="companyOffDays">Company Off Days (optional)</Label>
-            <Input
-              id="companyOffDays"
-              placeholder="e.g., 2024-12-24, 2024-12-31"
-              value={formData.companyOffDays}
-              onChange={(e) => handleInputChange('companyOffDays', e.target.value)}
+            <MultiDatePicker
+              dates={formData.companyOffDays}
+              onDatesChange={(dates) => handleInputChange('companyOffDays', dates)}
+              placeholder="Select company off days"
+              maxDisplay={2}
             />
             <p className="text-sm text-muted-foreground">
-              Enter additional company-specific off days
+              Select additional company-specific off days (e.g., floating holidays, company closure days)
             </p>
           </div>
 

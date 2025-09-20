@@ -9,7 +9,8 @@ Calibreli is a web application designed to help employees maximize their paid ti
   - **Balanced Mix**: Combines long weekends and mini breaks
   - **Long Weekends**: Extends weekends around holidays for maximum relaxation
   - **Mini Breaks**: Short 2-3 day breaks distributed throughout the year
-- **Customizable Planning**: Set your planning period, add national holidays and company off-days
+- **Flexible Planning Periods**: Set custom date ranges (perfect for fiscal years or any planning period)
+- **Interactive Date Selection**: Visual calendar interface for selecting holidays and company off-days
 - **Efficiency Metrics**: See how many total days off you get per PTO day used
 - **Responsive Design**: Works perfectly on desktop and mobile devices
 
@@ -51,9 +52,9 @@ The built files will be in the `dist` directory, ready for deployment to any sta
 ## How to Use
 
 1. **Enter Your PTO Details**: Input the number of PTO days you have available
-2. **Set Your Planning Period**: Choose the start and end months for your planning
+2. **Set Your Planning Period**: Choose specific start and end dates for your planning period (perfect for fiscal years or custom periods)
 3. **Choose Your Vacation Style**: Select from Balanced Mix, Long Weekends, or Mini Breaks
-4. **Add Holidays** (Optional): Enter national holidays and company-specific off days
+4. **Add Holidays** (Optional): Use the interactive calendar to select national holidays and company-specific off days
 5. **Generate Your Plan**: Click "Generate PTO Plan" to see your optimized schedule
 
 ## Technology Stack
