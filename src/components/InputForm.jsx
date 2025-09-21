@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker, MultiDatePicker } from '@/components/ui/date-picker';
+import { WorkWeekSelector } from '@/components/ui/work-week-selector';
 import { Calendar, CalendarDays, Settings } from 'lucide-react';
 import { VACATION_STYLES, VACATION_STYLE_LABELS } from '@/utils/ptoOptimizer';
 import { addYears } from 'date-fns';
@@ -16,7 +17,8 @@ export function InputForm({ onSubmit, isLoading }) {
     endDate: null,
     vacationStyle: VACATION_STYLES.BALANCED_MIX,
     holidays: [],
-    companyOffDays: []
+    companyOffDays: [],
+    weekendDays: [0, 6] // Default: Sunday and Saturday
   });
 
   const [errors, setErrors] = useState({});
@@ -56,7 +58,8 @@ export function InputForm({ onSubmit, isLoading }) {
       endDate: formData.endDate,
       holidays: formData.holidays,
       companyOffDays: formData.companyOffDays,
-      vacationStyle: formData.vacationStyle
+      vacationStyle: formData.vacationStyle,
+      weekendDays: formData.weekendDays
     };
 
     onSubmit(optimizationParams);
@@ -161,6 +164,12 @@ export function InputForm({ onSubmit, isLoading }) {
               </div>
             </div>
           </div>
+
+          {/* Work Week Configuration */}
+          <WorkWeekSelector
+            weekendDays={formData.weekendDays}
+            onWeekendDaysChange={(days) => handleInputChange('weekendDays', days)}
+          />
 
           {/* Holidays */}
           <div className="space-y-2">
