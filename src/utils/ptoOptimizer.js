@@ -1,4 +1,4 @@
-import { format, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, differenceInDays } from 'date-fns';
+import { eachDayOfInterval, format, isValid, startOfDay, differenceInCalendarDays } from 'date-fns';
 
 export const VACATION_STYLES = {
   BALANCED_MIX: 'balanced_mix',
@@ -12,399 +12,138 @@ export const VACATION_STYLE_LABELS = {
   [VACATION_STYLES.MINI_BREAKS]: 'Mini Breaks'
 };
 
-/**
- * Check if a date is a weekend based on custom weekend days
- * @param {Date} date - Date to check
- * @param {number[]} weekendDays - Array of weekend day numbers (0=Sunday, 6=Saturday)
- * @returns {boolean} True if the date is a weekend
- */
-function isCustomWeekend(date, weekendDays = [0, 6]) {
-  return weekendDays.includes(date.getDay());
-}
+const dateKey = date => format(date, 'yyyy-MM-dd');
+const validDate = date => date instanceof Date && isValid(date);
 
 /**
- * Main PTO optimization function
- * @param {Object} params - Optimization parameters
- * @param {number} params.ptoDays - Number of PTO days available
- * @param {Date} params.startDate - Start date for planning period
- * @param {Date} params.endDate - End date for planning period
- * @param {Date[]} params.holidays - Array of holiday dates
- * @param {Date[]} params.companyOffDays - Array of company off days
- * @param {string} params.vacationStyle - Vacation style preference
- * @param {number[]} params.weekendDays - Array of weekend day numbers (0=Sunday, 6=Saturday)
- * @returns {Array} Array of optimized PTO recommendations
+ * Select efficient, non-overlapping breaks within an inclusive planning period.
+ * This is a preference-based greedy planner, not a global-optimum solver.
+ * Holidays take precedence over regular days off, so every date counts once.
+ * Long weekends use 1–2 PTO days; mini breaks span 2–3 calendar days.
  */
 export function optimizePTO({
-  ptoDays,
-  startDate,
-  endDate,
-  holidays = [],
-  companyOffDays = [],
-  vacationStyle = VACATION_STYLES.BALANCED_MIX,
-  weekendDays = [0, 6]
-}) {
-  // Input validation
-  if (ptoDays <= 0) return [];
-  if (!startDate || !endDate) return [];
-  if (startDate >= endDate) return [];
-  
-  // Get all dates in range
-  const allDates = eachDayOfInterval({ start: startDate, end: endDate });
-  
-  // Combine all off days (holidays + company off days)
-  const allOffDays = [...holidays, ...companyOffDays];
-  
-  // Find potential vacation periods based on style
-  let recommendations = [];
-  
-  switch (vacationStyle) {
-    case VACATION_STYLES.LONG_WEEKENDS:
-      recommendations = generateLongWeekends(allDates, allOffDays, ptoDays, weekendDays);
-      break;
-    case VACATION_STYLES.MINI_BREAKS:
-      recommendations = generateMiniBreaks(allDates, allOffDays, ptoDays, weekendDays);
-      break;
-    case VACATION_STYLES.BALANCED_MIX:
-    default:
-      recommendations = generateBalancedMix(allDates, allOffDays, ptoDays, weekendDays);
-      break;
+  ptoDays, startDate, endDate, holidays = [], companyOffDays = [],
+  vacationStyle = VACATION_STYLES.BALANCED_MIX, weekendDays = [0, 6]
+} = {}) {
+  if (!Number.isSafeInteger(ptoDays) || ptoDays <= 0) return [];
+  if (!validDate(startDate) || !validDate(endDate)) return [];
+  const start = startOfDay(startDate);
+  const end = startOfDay(endDate);
+  if (start >= end) return [];
+  // Keep synchronous browser work bounded and report the limit to the caller.
+  if (differenceInCalendarDays(end, start) > 3660) {
+    throw new RangeError('Choose a planning period of 10 years or less.');
   }
-  
-  return recommendations.filter(rec => rec.ptoDaysUsed > 0);
-}
+  if (!Array.isArray(weekendDays) || weekendDays.some(day => !Number.isInteger(day) || day < 0 || day > 6)) return [];
+  if (!Array.isArray(holidays) || !Array.isArray(companyOffDays)) return [];
+  const offDays = new Set([...holidays, ...companyOffDays].filter(validDate).map(dateKey));
+  const weekends = new Set(weekendDays);
+  const days = eachDayOfInterval({ start, end }).map(date => ({
+    date,
+    kind: offDays.has(dateKey(date)) ? 'holiday' : weekends.has(date.getDay()) ? 'weekend' : 'pto'
+  }));
+  const budget = Math.min(ptoDays, days.filter(day => day.kind === 'pto').length);
+  if (!budget) return [];
 
-/**
- * Generate long weekend recommendations
- */
-function generateLongWeekends(allDates, offDays, ptoDays, weekendDays) {
-  const recommendations = [];
-  let remainingPTO = ptoDays;
-  
-  // Find holidays and extend them into long weekends
-  const holidayOpportunities = findHolidayOpportunities(allDates, offDays, weekendDays);
-  
-  // Sort by efficiency (total days off / PTO days used)
-  holidayOpportunities.sort((a, b) => b.efficiency - a.efficiency);
-  
-  for (const opportunity of holidayOpportunities) {
-    if (remainingPTO <= 0) break;
-    
-    const ptoNeeded = Math.min(opportunity.ptoNeeded, remainingPTO);
-    if (ptoNeeded > 0) {
-      const vacation = createVacationPeriod(
-        opportunity.startDate,
-        opportunity.endDate,
-        ptoNeeded,
-        offDays,
-        'Long Weekend',
-        weekendDays
-      );
-      
-      if (vacation) {
-        recommendations.push(vacation);
-        remainingPTO -= ptoNeeded;
-      }
+  const long = [];
+  const mini = [];
+  // Prefix counts make the cost of every candidate independent of its length.
+  const counts = { pto: [0], holiday: [0], weekend: [0] };
+  for (const day of days) {
+    for (const kind of Object.keys(counts)) {
+      counts[kind].push(counts[kind].at(-1) + Number(day.kind === kind));
     }
   }
-  
-  // Use remaining PTO for additional long weekends
-  if (remainingPTO > 0) {
-    const additionalWeekends = findAdditionalWeekends(allDates, offDays, remainingPTO, recommendations, weekendDays);
-    recommendations.push(...additionalWeekends);
-  }
-  
-  return recommendations;
-}
-
-/**
- * Generate mini break recommendations
- */
-function generateMiniBreaks(allDates, offDays, ptoDays, weekendDays) {
-  const recommendations = [];
-  let remainingPTO = ptoDays;
-  
-  // Aim for 2-3 day breaks distributed throughout the period
-  const targetBreakSize = 2;
-  const numberOfBreaks = Math.floor(ptoDays / targetBreakSize);
-  
-  // Divide the time period into segments
-  const segmentSize = Math.floor(allDates.length / numberOfBreaks);
-  
-  for (let i = 0; i < numberOfBreaks && remainingPTO >= targetBreakSize; i++) {
-    const segmentStart = i * segmentSize;
-    const segmentEnd = Math.min((i + 1) * segmentSize, allDates.length);
-    const segmentDates = allDates.slice(segmentStart, segmentEnd);
-    
-    // Find best 2-3 day period in this segment
-    const miniBreak = findBestMiniBreak(segmentDates, offDays, targetBreakSize, weekendDays);
-    
-    if (miniBreak) {
-      const vacation = createVacationPeriod(
-        miniBreak.startDate,
-        miniBreak.endDate,
-        targetBreakSize,
-        offDays,
-        'Mini Break',
-        weekendDays
-      );
-      
-      if (vacation) {
-        recommendations.push(vacation);
-        remainingPTO -= targetBreakSize;
-      }
-    }
-  }
-  
-  return recommendations;
-}
-
-/**
- * Generate balanced mix recommendations
- */
-function generateBalancedMix(allDates, offDays, ptoDays, weekendDays) {
-  const recommendations = [];
-  let remainingPTO = ptoDays;
-  
-  // Combine strategies: some long weekends, some mini breaks
-  const longWeekendPTO = Math.floor(ptoDays * 0.6);
-  const miniBreakPTO = ptoDays - longWeekendPTO;
-  
-  // Generate long weekends first
-  const longWeekends = generateLongWeekends(allDates, offDays, longWeekendPTO, weekendDays);
-  recommendations.push(...longWeekends);
-  
-  const usedPTO = longWeekends.reduce((sum, rec) => sum + rec.ptoDaysUsed, 0);
-  remainingPTO = ptoDays - usedPTO;
-  
-  // Use remaining PTO for mini breaks
-  if (remainingPTO > 0) {
-    const miniBreaks = generateMiniBreaks(allDates, offDays, remainingPTO, weekendDays);
-    recommendations.push(...miniBreaks);
-  }
-  
-  return recommendations;
-}
-
-/**
- * Find holiday opportunities for long weekends
- */
-function findHolidayOpportunities(allDates, offDays, weekendDays) {
-  const opportunities = [];
-  
-  for (const holiday of offDays) {
-    if (!isDateInRange(holiday, allDates)) continue;
-    
-    // Check for weekend extensions
-    const beforeWeekend = findWeekendBefore(holiday);
-    const afterWeekend = findWeekendAfter(holiday);
-    
-    // Calculate optimal extension
-    let startDate = holiday;
-    let endDate = holiday;
-    let ptoNeeded = 0;
-    
-    // Extend backwards to include weekend
-    if (beforeWeekend) {
-      const daysBetween = differenceInDays(holiday, beforeWeekend.end);
-      if (daysBetween <= 3) { // Worth bridging
-        startDate = beforeWeekend.start;
-        ptoNeeded += Math.max(0, daysBetween - 1);
-      }
-    }
-    
-    // Extend forwards to include weekend
-    if (afterWeekend) {
-      const daysBetween = differenceInDays(afterWeekend.start, holiday);
-      if (daysBetween <= 3) { // Worth bridging
-        endDate = afterWeekend.end;
-        ptoNeeded += Math.max(0, daysBetween - 1);
-      }
-    }
-    
-    const totalDays = differenceInDays(endDate, startDate) + 1;
-    const efficiency = ptoNeeded > 0 ? totalDays / ptoNeeded : totalDays;
-    
-    opportunities.push({
-      startDate,
-      endDate,
-      ptoNeeded,
-      totalDays,
-      efficiency,
-      holiday
-    });
-  }
-  
-  return opportunities;
-}
-
-/**
- * Create a vacation period object
- */
-function createVacationPeriod(startDate, endDate, ptoDaysUsed, offDays, type, weekendDays) {
-  const totalDays = differenceInDays(endDate, startDate) + 1;
-  const weekendDaysCount = countWeekendDays(startDate, endDate, weekendDays);
-  const holidayDays = countHolidayDays(startDate, endDate, offDays);
-  
-  return {
-    startDate,
-    endDate,
-    totalDays,
-    ptoDaysUsed,
-    weekendDays: weekendDaysCount,
-    holidayDays,
-    type,
-    efficiency: totalDays / ptoDaysUsed,
-    dateRange: `${format(startDate, 'MMM d')} – ${format(endDate, 'MMM d')}`
-  };
-}
-
-/**
- * Helper functions
- */
-function isDateInRange(date, allDates) {
-  return allDates.some(d => isSameDay(d, date));
-}
-
-function findWeekendBefore(date) {
-  // Find the weekend (Saturday-Sunday) before the given date
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0) { // Sunday
-    return { start: addDays(date, -1), end: date };
-  } else if (dayOfWeek === 6) { // Saturday
-    return { start: date, end: addDays(date, 1) };
-  }
-  
-  // Find previous weekend
-  const daysToSaturday = dayOfWeek === 0 ? 1 : dayOfWeek + 1;
-  const saturday = addDays(date, -daysToSaturday);
-  return { start: saturday, end: addDays(saturday, 1) };
-}
-
-function findWeekendAfter(date) {
-  // Find the weekend (Saturday-Sunday) after the given date
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0) { // Sunday
-    const nextSaturday = addDays(date, 6);
-    return { start: nextSaturday, end: addDays(nextSaturday, 1) };
-  } else if (dayOfWeek === 6) { // Saturday
-    return { start: date, end: addDays(date, 1) };
-  }
-  
-  // Find next weekend
-  const daysToSaturday = 6 - dayOfWeek;
-  const saturday = addDays(date, daysToSaturday);
-  return { start: saturday, end: addDays(saturday, 1) };
-}
-
-function countWeekendDays(startDate, endDate, weekendDays) {
-  const dates = eachDayOfInterval({ start: startDate, end: endDate });
-  return dates.filter(date => isCustomWeekend(date, weekendDays)).length;
-}
-
-function countHolidayDays(startDate, endDate, holidays) {
-  const dates = eachDayOfInterval({ start: startDate, end: endDate });
-  return dates.filter(date => 
-    holidays.some(holiday => isSameDay(date, holiday))
-  ).length;
-}
-
-function findAdditionalWeekends(allDates, offDays, remainingPTO, existingRecommendations, weekendDays) {
-  // Find weekends not already covered by recommendations
-  const recommendations = [];
-  const usedDates = new Set();
-  
-  // Mark dates already used
-  existingRecommendations.forEach(rec => {
-    const dates = eachDayOfInterval({ start: rec.startDate, end: rec.endDate });
-    dates.forEach(date => usedDates.add(date.getTime()));
+  const makeCandidate = (from, to, type) => ({
+    from, to, type, totalDays: to - from + 1,
+    ptoDaysUsed: counts.pto[to + 1] - counts.pto[from],
+    holidayDays: counts.holiday[to + 1] - counts.holiday[from],
+    weekendDays: counts.weekend[to + 1] - counts.weekend[from]
   });
-  
-  // Find available weekends
-  const weekends = [];
-  for (let i = 0; i < allDates.length; i++) {
-    const date = allDates[i];
-    if (date.getDay() === 6 && !usedDates.has(date.getTime())) { // Saturday
-      const sunday = addDays(date, 1);
-      if (i + 1 < allDates.length && !usedDates.has(sunday.getTime())) {
-        weekends.push({ start: date, end: sunday });
+
+  for (let from = 0; from < days.length; from++) {
+    // Mini breaks may include free days, and must last two or three days.
+    for (let to = from + 1; to <= Math.min(from + 2, days.length - 1); to++) {
+      const candidate = makeCandidate(from, to, 'Mini Break');
+      // Keep this preference distinct from long weekends: mini breaks are
+      // short weekday runs, optionally improved by a holiday.
+      // A run made entirely of PTO is ordinary leave, not a useful suggestion.
+      // Mini breaks only earn a place in the plan when a holiday extends them.
+      if (candidate.ptoDaysUsed > 0 && candidate.weekendDays === 0 && candidate.holidayDays > 0) mini.push(candidate);
+    }
+    // Don't cut a natural run of free days in half.
+    if (from > 0 && days[from - 1].kind !== 'pto') continue;
+    for (let to = from; to < days.length; to++) {
+      const candidate = makeCandidate(from, to, 'Long Weekend');
+      if (candidate.ptoDaysUsed > 2) break;
+      if (to + 1 < days.length && days[to + 1].kind !== 'pto') continue;
+      if (candidate.totalDays >= 3 && candidate.ptoDaysUsed > 0 && candidate.holidayDays + candidate.weekendDays > 0) long.push(candidate);
+    }
+  }
+
+  const selected = [];
+  const occupied = new Uint8Array(days.length);
+  let remaining = budget;
+  const available = candidate => {
+    // Separate breaks by at least one calendar day; adjacent intervals are one break.
+    for (let day = Math.max(0, candidate.from - 1); day <= Math.min(days.length - 1, candidate.to + 1); day++) {
+      if (occupied[day]) return false;
+    }
+    return true;
+  };
+  const select = candidate => {
+    selected.push(candidate);
+    remaining -= candidate.ptoDaysUsed;
+    occupied.fill(1, candidate.from, candidate.to + 1);
+  };
+  const efficiencyOrder = (a, b) => b.totalDays / b.ptoDaysUsed - a.totalDays / a.ptoDaysUsed || b.totalDays - a.totalDays;
+  const takeLongWeekends = allowance => {
+    long.sort((a, b) => efficiencyOrder(a, b) || a.from - b.from);
+    for (const candidate of long) {
+      if (candidate.ptoDaysUsed <= Math.min(allowance, remaining) && available(candidate)) {
+        select(candidate);
+        allowance -= candidate.ptoDaysUsed;
       }
     }
-  }
-  
-  // Extend weekends with PTO days
-  let ptoLeft = remainingPTO;
-  for (const weekend of weekends) {
-    if (ptoLeft <= 0) break;
-    
-    // Try to extend weekend (add Friday and/or Monday)
-    const friday = addDays(weekend.start, -1);
-    const monday = addDays(weekend.end, 1);
-    
-    let startDate = weekend.start;
-    let endDate = weekend.end;
-    let ptoUsed = 0;
-    
-    // Add Friday if available and we have PTO
-    if (ptoLeft > 0 && !isWeekend(friday) && !usedDates.has(friday.getTime())) {
-      startDate = friday;
-      ptoUsed++;
-      ptoLeft--;
+  };
+  const takeMiniBreaks = (maximumBreaks = remaining) => {
+    // Among equally efficient choices, favor evenly spaced dates across the period.
+    const slots = Math.min(maximumBreaks, remaining, Math.ceil(days.length / 3));
+    for (let slot = 0; slot < slots && remaining > 0; slot++) {
+      const target = (slot + 0.5) * days.length / slots;
+      let best = null;
+      for (const candidate of mini) {
+        if (candidate.ptoDaysUsed > remaining || !available(candidate)) continue;
+        const ranking = best ? efficiencyOrder(candidate, best) : -1;
+        if (!best || ranking < 0 || (ranking === 0 && Math.abs(candidate.from - target) < Math.abs(best.from - target))) best = candidate;
+      }
+      if (!best) break;
+      select(best);
     }
-    
-    // Add Monday if available and we have PTO
-    if (ptoLeft > 0 && !isWeekend(monday) && !usedDates.has(monday.getTime())) {
-      endDate = monday;
-      ptoUsed++;
-      ptoLeft--;
-    }
-    
-    if (ptoUsed > 0) {
-      const vacation = createVacationPeriod(startDate, endDate, ptoUsed, offDays, 'Long Weekend');
-      recommendations.push(vacation);
-      
-      // Mark dates as used
-      const dates = eachDayOfInterval({ start: startDate, end: endDate });
-      dates.forEach(date => usedDates.add(date.getTime()));
-    }
-  }
-  
-  return recommendations;
-}
+  };
 
-function findBestMiniBreak(segmentDates, offDays, targetSize, weekendDays) {
-  // Find the best 2-3 day period in the segment
-  // Prefer periods that include existing off days
-  let bestBreak = null;
-  let bestScore = 0;
-  
-  for (let i = 0; i <= segmentDates.length - targetSize; i++) {
-    const startDate = segmentDates[i];
-    const endDate = segmentDates[i + targetSize - 1];
-    
-    // Skip if it includes weekends (not efficient for mini breaks)
-    const dates = eachDayOfInterval({ start: startDate, end: endDate });
-    const weekendCount = dates.filter(date => isCustomWeekend(date, weekendDays)).length;
-    if (weekendCount > 0) continue;
-    
-    // Calculate score based on adjacent weekends/holidays
-    let score = 1;
-    
-    // Bonus for being adjacent to weekends
-    const dayBefore = addDays(startDate, -1);
-    const dayAfter = addDays(endDate, 1);
-    
-    if (isCustomWeekend(dayBefore, weekendDays)) score += 2;
-    if (isCustomWeekend(dayAfter, weekendDays)) score += 2;
-    
-    // Bonus for including holidays
-    const holidayCount = countHolidayDays(startDate, endDate, offDays);
-    score += holidayCount * 3;
-    
-    if (score > bestScore) {
-      bestScore = score;
-      bestBreak = { startDate, endDate };
-    }
+  if (vacationStyle === VACATION_STYLES.LONG_WEEKENDS) takeLongWeekends(remaining);
+  else if (vacationStyle === VACATION_STYLES.MINI_BREAKS) takeMiniBreaks();
+  else {
+    // A balanced plan must contain both types when suitable candidates exist.
+    takeMiniBreaks(1);
+    takeLongWeekends(Math.max(1, Math.floor(remaining * 0.6)));
+    takeMiniBreaks();
+    if (remaining > 0) takeLongWeekends(remaining);
   }
-  
-  return bestBreak;
+
+  return selected
+    // A holiday alone is time away already; suggestions must always spend PTO.
+    .filter(candidate => candidate.ptoDaysUsed > 0 && candidate.holidayDays + candidate.weekendDays > 0)
+    .sort((a, b) => a.from - b.from)
+    .map(({ from, to, ...candidate }) => {
+    const startDate = days[from].date;
+    const endDate = days[to].date;
+    return {
+      ...candidate, startDate, endDate,
+      efficiency: candidate.totalDays / candidate.ptoDaysUsed,
+      dateRange: `${format(startDate, 'MMM d, yyyy')} – ${format(endDate, 'MMM d, yyyy')}`,
+      ptoDates: days.slice(from, to + 1).filter(day => day.kind === 'pto').map(day => day.date)
+    };
+    });
 }

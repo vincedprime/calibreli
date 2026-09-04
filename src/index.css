@@ -57,3 +57,91 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer base {
+  :root {
+    --background: 220 14% 97%;
+    --foreground: 220 15% 16%;
+    --card-foreground: 220 15% 16%;
+    --primary: 222 68% 45%;
+    --ring: 222 68% 45%;
+    --muted-foreground: 220 7% 44%;
+    --border: 220 10% 87%;
+    --input: 220 10% 82%;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .dark {
+    --background: 220 12% 10%;
+    --foreground: 220 10% 92%;
+    --card: 220 12% 13%;
+    --card-foreground: 220 10% 92%;
+    --popover: 220 12% 13%;
+    --popover-foreground: 220 10% 92%;
+    --primary: 220 85% 70%;
+    --primary-foreground: 220 15% 10%;
+    --ring: 220 85% 70%;
+    --accent: 220 10% 20%;
+    --accent-foreground: 220 10% 92%;
+    --muted: 220 10% 17%;
+    --muted-foreground: 220 8% 65%;
+    --border: 220 10% 24%;
+    --input: 220 10% 32%;
+  }
+  body { -webkit-font-smoothing: antialiased; }
+  button, input { touch-action: manipulation; }
+  button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  .press-feedback {
+    transition: transform 160ms var(--ease-out), background-color 150ms ease, color 150ms ease;
+  }
+  html[data-input="pointer"] .press-feedback:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  /* Transitions retarget during rapid toggles; keyboard use remains instant. */
+  .motion-surface {
+    transform-origin: var(--radix-popover-content-transform-origin, var(--radix-select-content-transform-origin, var(--radix-hover-card-content-transform-origin, center)));
+    opacity: 1;
+    transition: opacity 180ms var(--ease-out);
+  }
+  @starting-style {
+    .motion-surface { opacity: 0; }
+  }
+  html[data-input="keyboard"] .motion-surface,
+  html[data-input="keyboard"] button { transition: none; }
+  html[data-input="pointer"] .planner-form input:focus-visible,
+  html[data-input="pointer"] .planner-form button[role="combobox"]:focus-visible {
+    box-shadow: none;
+    outline: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html[data-input="pointer"] .press-feedback:active:not(:disabled) { transform: none; }
+    .animate-spin { animation: none; }
+    .motion-surface { transition: opacity 120ms ease; }
+  }
+}
+
+@layer components {
+  .planner-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
+  .planner-form { padding: 24px; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px; }
+  .plan-output { padding-top: 24px; }
+  .empty-plan { padding: 72px 16px; text-align: center; }
+  .example-week { display: flex; justify-content: center; gap: 4px; }
+  .example-day { display: flex; flex-direction: column; gap: 14px; width: 60px; padding: 12px 8px; border: 1px solid hsl(var(--border)); border-radius: 4px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .example-day span:last-child { font-size: 11px; }
+  .example-leave { background: hsl(var(--primary) / .06); border-color: hsl(var(--primary) / .3); color: hsl(var(--primary)); }
+  .date-stamp { width: 46px; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 4px; }
+  .schedule-details > summary { list-style: none; }
+  .schedule-details > summary::-webkit-details-marker { display: none; }
+  .schedule-details[open] .disclosure-chevron { transform: rotate(180deg); }
+  @media (max-width: 767px) {
+    .planner-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .planner-form { padding: 20px; }
+    .plan-output { padding-top: 0; }
+    .empty-plan { padding: 40px 8px; }
+  }
+}

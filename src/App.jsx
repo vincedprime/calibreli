@@ -1,133 +1,154 @@
-import React, { useState } from 'react';
-import { InputForm } from './components/InputForm';
-import { ScheduleView } from './components/ScheduleView';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+const InputForm = lazy(() => import('./components/InputForm').then(module => ({ default: module.InputForm })));
+const ScheduleView = lazy(() => import('./components/ScheduleView').then(module => ({ default: module.ScheduleView })));
+
 import { optimizePTO } from './utils/ptoOptimizer';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
-import { Calendar, Sparkles } from 'lucide-react';
+import { downloadPlanPdf } from './utils/exportPlanPdf';
+import { Calendar, Download, RotateCcw, Sun, Moon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Spinner from '@/components/ui/spinner';
+
+const SAVED_PLAN_KEY = 'calibreli:current-plan';
+
+const serializeParams = params => ({
+  ...params,
+  startDate: params.startDate.toISOString(),
+  endDate: params.endDate.toISOString(),
+  holidays: params.holidays.map(date => date.toISOString()),
+});
+
+const reviveParams = params => ({
+  ...params,
+  startDate: new Date(params.startDate),
+  endDate: new Date(params.endDate),
+  // Fold the old two-list shape into the single holiday input on restore.
+  holidays: [...(params.holidays ?? []), ...(params.companyOffDays ?? [])].map(date => new Date(date)),
+});
+
+const readSavedPlan = () => {
+  try {
+    const savedParams = JSON.parse(localStorage.getItem(SAVED_PLAN_KEY) || 'null');
+    return savedParams ? reviveParams(savedParams) : null;
+  } catch {
+    return null;
+  }
+};
 
 function App() {
-  const [recommendations, setRecommendations] = useState(null);
+  const [savedPlan] = useState(readSavedPlan);
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const keyboard = () => { document.documentElement.dataset.input = 'keyboard'; };
+    const pointer = () => { document.documentElement.dataset.input = 'pointer'; };
+    document.addEventListener('keydown', keyboard, true);
+    document.addEventListener('pointerdown', pointer, true);
+    return () => {
+      document.removeEventListener('keydown', keyboard, true);
+      document.removeEventListener('pointerdown', pointer, true);
+    };
+  }, []);
+  const [recommendations, setRecommendations] = useState(() => savedPlan ? optimizePTO(savedPlan) : null);
   const [isLoading, setIsLoading] = useState(false);
-  const [optimizationParams, setOptimizationParams] = useState(null);
+  const [optimizationParams, setOptimizationParams] = useState(savedPlan);
+  const [error, setError] = useState(null);
+  const [formInitialValues, setFormInitialValues] = useState(savedPlan);
+  const [formKey, setFormKey] = useState(0);
 
-  const handleOptimization = async (params) => {
+  useEffect(() => {
+    if (optimizationParams) localStorage.setItem(SAVED_PLAN_KEY, JSON.stringify(serializeParams(optimizationParams)));
+    else localStorage.removeItem(SAVED_PLAN_KEY);
+  }, [optimizationParams]);
+
+  const handleOptimization = (params) => {
     setIsLoading(true);
+    setError(null);
     setOptimizationParams(params);
-    
     try {
-      // Simulate loading for better UX
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const results = optimizePTO(params);
-      setRecommendations(results);
+      const plan = optimizePTO(params);
+      setRecommendations(plan);
     } catch (error) {
-      console.error('Error optimizing PTO:', error);
-      setRecommendations([]);
+      setError(error.message || 'Could not create a plan. Please check your dates.');
     } finally {
       setIsLoading(false);
     }
   };
-
-  const totalPTOUsed = recommendations 
-    ? recommendations.reduce((sum, rec) => sum + rec.ptoDaysUsed, 0)
-    : 0;
+  const totalPTOUsed = recommendations?.reduce((sum, rec) => sum + rec.ptoDaysUsed, 0) || 0;
+  const resetPlanner = () => {
+    setRecommendations(null);
+    setOptimizationParams(null);
+    setError(null);
+    setFormInitialValues(null);
+    setFormKey(key => key + 1);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-primary rounded-full">
-              <Calendar className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <h1 className="text-4xl font-bold text-gray-900">Calibreli</h1>
+
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="mx-auto max-w-6xl px-5 sm:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Calendar aria-hidden="true" className="h-5 w-5 text-primary" />
+            <span className="font-semibold tracking-tight">Calibreli</span>
+            <span className="h-4 border-l mx-1" aria-hidden="true" />
+            <span className="text-sm text-muted-foreground">Vacation planner</span>
           </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Maximize your paid time off by intelligently combining PTO days with holidays and weekends
-          </p>
+          <button type="button" onClick={() => {
+            document.documentElement.classList.toggle('dark', !dark);
+            setDark(!dark);
+          }} className="press-feedback flex h-9 w-9 items-center justify-center rounded-md"
+            aria-label={dark ? 'Use light theme' : 'Use dark theme'} aria-pressed={dark}>
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
         </div>
-
-        {/* Main Content */}
-        <div className="space-y-8">
-          {/* Input Form */}
-          <InputForm onSubmit={handleOptimization} isLoading={isLoading} />
-
-          {/* Loading State */}
-          {isLoading && (
-            <Card className="w-full max-w-2xl mx-auto">
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <Sparkles className="h-12 w-12 text-primary mx-auto mb-4 animate-pulse" />
-                  <h3 className="text-lg font-semibold mb-2">Optimizing Your Schedule</h3>
-                  <p className="text-muted-foreground">
-                    Analyzing holidays, weekends, and your preferences...
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Results */}
-          {recommendations && !isLoading && (
-            <ScheduleView 
-              recommendations={recommendations}
-              totalPTOUsed={totalPTOUsed}
-              availablePTO={optimizationParams?.ptoDays || 0}
-            />
-          )}
-
-          {/* Welcome Message */}
-          {!recommendations && !isLoading && (
-            <Card className="w-full max-w-4xl mx-auto">
-              <CardHeader>
-                <CardTitle className="text-center">Welcome to Smart PTO Planning</CardTitle>
-                <CardDescription className="text-center">
-                  Get started by filling out the form above to generate your personalized vacation schedule
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Calendar className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <h3 className="font-semibold mb-2">Smart Scheduling</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Our algorithm finds the best combinations of PTO, holidays, and weekends
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Sparkles className="h-6 w-6 text-green-600" />
-                    </div>
-                    <h3 className="font-semibold mb-2">Multiple Styles</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Choose from balanced mix, long weekends, or mini breaks based on your preference
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Calendar className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <h3 className="font-semibold mb-2">Maximize Impact</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Get more days off while using fewer PTO days through strategic planning
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+      </header>
+      <main className="mx-auto max-w-6xl px-5 sm:px-8 py-8 sm:py-10">
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight">Plan your time off</h1>
+          <p className="text-sm text-muted-foreground mt-2">Find where vacation days extend weekends and holidays.</p>
         </div>
-
-        {/* Footer */}
-        <footer className="text-center mt-16 py-8 border-t border-gray-200">
-          <p className="text-muted-foreground">
-            Built with ❤️ to help you make the most of your time off
-          </p>
-        </footer>
-      </div>
+        <div className="planner-layout">
+          <Suspense fallback={<div role="status"><Spinner />Loading planner…</div>}>
+            <InputForm key={formKey} initialValues={formInitialValues} onSubmit={handleOptimization} isLoading={isLoading} />
+          </Suspense>
+          <section className="plan-output min-w-0" aria-label="Your plan" aria-live="polite" aria-busy={isLoading}>
+            <div className="flex items-center justify-between pb-5 border-b">
+              <h2 className="font-semibold">Your plan</h2>
+              <div className="flex items-center gap-2">
+                {recommendations && <Button type="button" variant="outline" size="sm" onClick={() => downloadPlanPdf({
+                  params: optimizationParams,
+                  recommendations,
+                  totalPTOUsed,
+                })}>
+                  <Download className="mr-1.5 h-3.5 w-3.5" /> Export PDF
+                </Button>}
+                <Button type="button" variant="ghost" size="sm" onClick={resetPlanner}>
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+                </Button>
+              </div>
+            </div>
+            {error && <p role="alert" className="py-4 text-sm text-destructive">{error}</p>}
+            {isLoading ? <div className="py-12" role="status"><Spinner /><p>Finding breaks…</p></div>
+              : recommendations ? (
+                <Suspense fallback={<Spinner />}><ScheduleView recommendations={recommendations}
+                  totalPTOUsed={totalPTOUsed} availablePTO={optimizationParams?.ptoDays || 0} />
+                </Suspense>
+              ) : (
+                <div className="empty-plan">
+                  <div className="example-week" aria-label="Example: take Friday and Monday off to make a four-day break">
+                    {['Fri', 'Sat', 'Sun', 'Mon'].map((day, index) => (
+                      <div key={day} className={index === 0 || index === 3 ? 'example-day example-leave' : 'example-day'}>
+                        <span>{day}</span><span>{index === 0 || index === 3 ? 'PTO' : 'Off'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">Example · 2 vacation days → 4 days away</p>
+                  <h3 className="font-medium mt-9">Start with your available days.</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2 max-w-xs mx-auto">Set a planning period, then add any holidays you already have off. Your suggested dates will appear here.</p>
+                </div>
+              )}
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
