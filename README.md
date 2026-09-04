@@ -1,10 +1,10 @@
-# Calibreli - Smart PTO Planning
+# Calibreli - PTO Planning
 
-Calibreli is a web application designed to help employees maximize their paid time off (PTO) by intelligently combining PTO days with public holidays and weekends to create optimized vacation schedules.
+Calibreli is a web application for planning paid time off (PTO) within a selected period. It combines PTO days with public holidays and weekends to suggest leave plans based on the user's preference.
 
 ## Features
 
-- **Smart PTO Optimization**: Automatically finds the best combinations of PTO days, holidays, and weekends
+- **PTO planning**: Suggests combinations of PTO days, holidays, and weekends
 - **Multiple Vacation Styles**: 
   - **Balanced Mix**: Combines long weekends and mini breaks
   - **Long Weekends**: Extends weekends around holidays for maximum relaxation
@@ -55,7 +55,7 @@ The built files will be in the `dist` directory, ready for deployment to any sta
 2. **Set Your Planning Period**: Choose specific start and end dates for your planning period (perfect for fiscal years or custom periods)
 3. **Choose Your Vacation Style**: Select from Balanced Mix, Long Weekends, or Mini Breaks
 4. **Add Holidays** (Optional): Use the interactive calendar to select national holidays and company-specific off days
-5. **Generate Your Plan**: Click "Generate PTO Plan" to see your optimized schedule
+5. **Generate Your Plan**: Click "Find breaks" to see suggested dates
 
 ## Technology Stack
 
@@ -85,13 +85,13 @@ calibreli/
 
 ## Algorithm Overview
 
-The PTO optimization engine uses different strategies based on your selected vacation style:
+The PTO planner uses different heuristics based on your selected vacation style:
 
 - **Long Weekends**: Identifies holidays and extends them by bridging with PTO days to create longer continuous periods off
 - **Mini Breaks**: Distributes PTO days evenly throughout the planning period for regular short breaks
 - **Balanced Mix**: Combines both strategies for a varied vacation schedule
 
-The algorithm calculates efficiency ratios (total days off ÷ PTO days used) to maximize your time off impact.
+Each recommendation shows calendar days away and PTO days used. Recommendations do not overlap and never exceed the selected PTO balance.
 
 ## Contributing
 

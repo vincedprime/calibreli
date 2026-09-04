@@ -31,25 +31,6 @@ export function WorkWeekSelector({
     }
   };
 
-  const getPresetName = () => {
-    const sortedDays = [...weekendDays].sort();
-    
-    // Common presets
-    if (JSON.stringify(sortedDays) === JSON.stringify([0, 6])) {
-      return "Standard (Sat-Sun)";
-    } else if (JSON.stringify(sortedDays) === JSON.stringify([5, 6])) {
-      return "Middle East (Fri-Sat)";
-    } else if (JSON.stringify(sortedDays) === JSON.stringify([6])) {
-      return "Six-day week (Sat only)";
-    } else if (JSON.stringify(sortedDays) === JSON.stringify([0])) {
-      return "Six-day week (Sun only)";
-    } else if (sortedDays.length === 0) {
-      return "Seven-day work week";
-    } else {
-      return "Custom schedule";
-    }
-  };
-
   const applyPreset = (preset) => {
     switch (preset) {
       case 'standard':
@@ -71,13 +52,6 @@ export function WorkWeekSelector({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div>
-        <Label className="text-base font-medium">Work Week Configuration</Label>
-        <p className="text-sm text-muted-foreground mt-1">
-          Select which days are considered weekends/off days in your organization
-        </p>
-      </div>
-
       {/* Quick Presets */}
       <div className="space-y-2">
         <Label className="text-sm">Quick Presets:</Label>
@@ -116,46 +90,34 @@ export function WorkWeekSelector({
       {/* Day Selector */}
       <div className="space-y-2">
         <Label className="text-sm">Custom Selection:</Label>
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = weekendDays.includes(day.id);
             return (
               <button
                 key={day.id}
                 type="button"
+                aria-pressed={isSelected}
+                aria-label={day.label}
                 onClick={() => toggleDay(day.id)}
                 className={cn(
-                  "p-2 text-xs rounded-md border transition-colors text-center",
+                  "min-h-11 min-w-0 px-1 py-2 text-xs rounded-md border transition-colors text-center",
                   "hover:bg-accent hover:text-accent-foreground",
                   "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
                   isSelected
-                    ? "bg-primary text-primary-foreground border-primary"
+                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
                     : "bg-background border-input"
                 )}
               >
                 <div className="font-medium">{day.short}</div>
-                <div className="text-[10px] opacity-75">{day.label}</div>
+
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Current Selection Display */}
-      <div className="p-3 bg-muted rounded-md">
-        <div className="text-sm">
-          <strong>Current Schedule:</strong> {getPresetName()}
-        </div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Weekend days: {weekendDays.length === 0 
-            ? "None (7-day work week)" 
-            : weekendDays.map(id => DAYS_OF_WEEK[id].label).join(", ")
-          }
-        </div>
-        <div className="text-xs text-muted-foreground">
-          Work days per week: {7 - weekendDays.length}
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground">Selected days don’t use your vacation balance.</p>
     </div>
   );
 }

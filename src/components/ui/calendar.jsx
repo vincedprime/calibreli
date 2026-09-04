@@ -11,9 +11,17 @@ function Calendar({
   selected,
   onSelect,
   mode = "single",
+  initialFocus,
+  month: controlledMonth,
+  onMonthChange,
   ...props
 }) {
-  const [currentMonth, setCurrentMonth] = React.useState(new Date())
+  const [uncontrolledMonth, setUncontrolledMonth] = React.useState(new Date())
+  const currentMonth = controlledMonth ?? uncontrolledMonth
+  const setCurrentMonth = (nextMonth) => {
+    if (controlledMonth === undefined) setUncontrolledMonth(nextMonth)
+    onMonthChange?.(nextMonth)
+  }
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -67,6 +75,8 @@ function Calendar({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
+          type="button"
+          aria-label="Previous month"
           onClick={previousMonth}
           className={cn(
             buttonVariants({ variant: "outline", size: "icon" }),
@@ -81,6 +91,8 @@ function Calendar({
         </div>
         
         <button
+          type="button"
+          aria-label="Next month"
           onClick={nextMonth}
           className={cn(
             buttonVariants({ variant: "outline", size: "icon" }),
@@ -113,6 +125,9 @@ function Calendar({
           return (
             <button
               key={index}
+              type="button"
+              aria-label={format(day, "EEEE, MMMM d, yyyy")}
+              aria-pressed={!!isDaySelected}
               onClick={() => handleDayClick(day)}
               className={cn(
                 "h-8 w-8 text-center text-sm relative rounded-md transition-colors",

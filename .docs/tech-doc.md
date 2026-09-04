@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-**Calibreli** is a web-based application that helps employees optimize their Paid Time Off (PTO) by aligning it with public holidays and company-specific off days. The system generates an optimized leave plan based on user preferences for different vacation styles. This project is fully static and can be deployed on GitHub Pages.
+**Calibreli** is a web-based application that helps employees plan Paid Time Off (PTO) alongside public holidays and company-specific off days. The system suggests a leave plan based on the selected vacation style. This project is fully static and can be deployed on GitHub Pages.
 
 ## 2. Architecture Overview
 **Frontend Only (Static Web App)**
@@ -17,7 +17,7 @@
 
 **High-Level Flow**
 1. User inputs PTO details and other preferences - time range, company/national holidays.
-2. System calculates optimized schedule.
+2. System calculates a suggested schedule.
 3. Generated schedule is displayed interactively:
 ## Examples
 - **Oct 11 – Oct 13**  
@@ -56,7 +56,7 @@
 
 * Pure JavaScript module.
 * Input: PTO days, holidays, off-days, style preference.
-* Output: Optimized PTO schedule (array of dates or date ranges).
+* Output: Suggested PTO schedule (array of dates or date ranges).
 * Logic:
   1. Calculate all potential weekends and holidays.
   2. Allocate PTO days according to style preference:
@@ -64,7 +64,7 @@
      * **Long Weekends:** Extend weekends around holidays.
      * **Mini Breaks:** Short 2–3 day breaks at multiple points.
   3. Check for overlaps and constraints.
-* Complexity: O(n), where n = number of days in selected range.
+* Complexity: bounded candidate search. The browser limits the planning period to ten years so planning remains responsive.
 
 ### 3.3 Schedule Display Component
 * **Calendar View**: Highlight PTO, holidays, and weekends.
@@ -83,7 +83,7 @@
 | Requirement                 | Implementation Detail               |
 | --------------------------- | ----------------------------------- |
 | Responsive UI               | shadcn/ui, flexbox/grid layouts  |
-| Fast Performance            | Frontend-only, optimized PTO engine |
+| Fast Performance            | Frontend-only planner with a bounded input range |
 | Accessibility               | ARIA labels, semantic HTML          |
 | Cross-browser compatibility | Chrome, Firefox, Edge, Safari       |
 
@@ -123,7 +123,7 @@ calibreli/
    * Balanced Mix → distribute PTO evenly
    * Long Weekends → attach PTO to existing holidays/weekends
    * Mini Breaks → create multiple short breaks
-4. **Optimize**:
+4. **Select recommendations**:
 
    * Avoid overlapping holidays
    * Ensure PTO limit not exceeded
@@ -135,5 +135,4 @@ calibreli/
 * Host: GitHub Pages (`gh-pages` branch)
 * URL: `https://<username>.github.io/calibreli`
 * Continuous Deployment: GitHub Actions can auto-deploy on push.
-
 

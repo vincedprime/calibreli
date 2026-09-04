@@ -3,23 +3,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker, MultiDatePicker } from '@/components/ui/date-picker';
 import { WorkWeekSelector } from '@/components/ui/work-week-selector';
-import { Calendar, CalendarDays, Settings } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
+import Spinner from '@/components/ui/spinner';
 import { VACATION_STYLES, VACATION_STYLE_LABELS } from '@/utils/ptoOptimizer';
-import { addYears } from 'date-fns';
 
-export function InputForm({ onSubmit, isLoading }) {
-  const [formData, setFormData] = useState({
-    ptoDays: '',
-    startDate: null,
-    endDate: null,
-    vacationStyle: VACATION_STYLES.BALANCED_MIX,
-    holidays: [],
-    companyOffDays: [],
-    weekendDays: [0, 6] // Default: Sunday and Saturday
-  });
+
+export function InputForm({ onSubmit, isLoading, initialValues }) {
+  const [formData, setFormData] = useState(() => ({
+    ptoDays: initialValues?.ptoDays?.toString() ?? '',
+    startDate: initialValues?.startDate ?? null,
+    endDate: initialValues?.endDate ?? null,
+    vacationStyle: initialValues?.vacationStyle ?? VACATION_STYLES.BALANCED_MIX,
+    holidays: initialValues?.holidays ?? [],
+    weekendDays: initialValues?.weekendDays ?? [0, 6]
+  }));
 
   const [errors, setErrors] = useState({});
 
@@ -27,9 +26,9 @@ export function InputForm({ onSubmit, isLoading }) {
     const newErrors = {};
 
     // Validate PTO days
-    const ptoDays = parseInt(formData.ptoDays);
-    if (!ptoDays || ptoDays <= 0) {
-      newErrors.ptoDays = 'PTO days must be a positive number';
+    const ptoDays = Number(formData.ptoDays);
+    if (!Number.isSafeInteger(ptoDays) || ptoDays <= 0) {
+      newErrors.ptoDays = 'Enter a positive whole number of days';
     }
 
     // Validate date range
@@ -49,15 +48,14 @@ export function InputForm({ onSubmit, isLoading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     const optimizationParams = {
-      ptoDays: parseInt(formData.ptoDays),
+      ptoDays: Number(formData.ptoDays),
       startDate: formData.startDate,
       endDate: formData.endDate,
       holidays: formData.holidays,
-      companyOffDays: formData.companyOffDays,
       vacationStyle: formData.vacationStyle,
       weekendDays: formData.weekendDays
     };
@@ -74,150 +72,76 @@ export function InputForm({ onSubmit, isLoading }) {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          PTO Planning Configuration
-        </CardTitle>
-        <CardDescription>
-          Enter your details to generate an optimized vacation schedule
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* PTO Days */}
-          <div className="space-y-2">
-            <Label htmlFor="ptoDays">Available PTO Days</Label>
-            <Input
-              id="ptoDays"
-              type="number"
-              min="1"
-              placeholder="e.g., 20"
-              value={formData.ptoDays}
-              onChange={(e) => handleInputChange('ptoDays', e.target.value)}
-              className={errors.ptoDays ? 'border-red-500' : ''}
-            />
-            {errors.ptoDays && (
-              <p className="text-sm text-red-500">{errors.ptoDays}</p>
-            )}
+    <form onSubmit={handleSubmit} className="planner-form min-w-0">
+      <h2 className="font-semibold mb-5">Your schedule</h2>
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="ptoDays">Available vacation days</Label>
+          <div className="relative">
+            <Input id="ptoDays" type="number" min="1" step="1" placeholder="20"
+              aria-invalid={!!errors.ptoDays} aria-describedby={errors.ptoDays ? 'ptoDays-error' : undefined}
+              value={formData.ptoDays} onChange={e => handleInputChange('ptoDays', e.target.value)}
+              className="pr-16 bg-card" />
+            <span className="absolute right-3 top-2.5 text-sm text-muted-foreground pointer-events-none">days</span>
           </div>
-
-          {/* Planning Period */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Planning Start Date</Label>
-              <DatePicker
-                date={formData.startDate}
-                onDateChange={(date) => handleInputChange('startDate', date)}
-                placeholder="Select start date"
-                className={errors.startDate ? 'border-red-500' : ''}
-              />
-              {errors.startDate && (
-                <p className="text-sm text-red-500">{errors.startDate}</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Start of your planning period (e.g., beginning of fiscal year)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="endDate">Planning End Date</Label>
-              <DatePicker
-                date={formData.endDate}
-                onDateChange={(date) => handleInputChange('endDate', date)}
-                placeholder="Select end date"
-                className={errors.endDate ? 'border-red-500' : ''}
-              />
-              {errors.endDate && (
-                <p className="text-sm text-red-500">{errors.endDate}</p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                End of your planning period
-              </p>
-            </div>
-          </div>
-
-          {/* Vacation Style */}
-          <div className="space-y-2">
-            <Label htmlFor="vacationStyle">Vacation Style</Label>
-            <Select 
-              value={formData.vacationStyle} 
-              onValueChange={(value) => handleInputChange('vacationStyle', value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(VACATION_STYLE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="text-sm text-muted-foreground">
-              <div className="mt-2 space-y-1">
-                <p><strong>Balanced Mix:</strong> Combines long weekends and mini breaks</p>
-                <p><strong>Long Weekends:</strong> Extends weekends around holidays</p>
-                <p><strong>Mini Breaks:</strong> Short 2-3 day breaks throughout the year</p>
+          {errors.ptoDays && <p id="ptoDays-error" role="alert" className="text-xs text-destructive">{errors.ptoDays}</p>}
+        </div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium mb-2">Planning period</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {[['startDate', 'From'], ['endDate', 'To']].map(([field, label]) => (
+              <div key={field} className="space-y-1.5 min-w-0">
+                <Label className="text-xs text-muted-foreground" htmlFor={field}>{label}</Label>
+                <DatePicker id={field} date={formData[field]} displayFormat="MMM d, yyyy"
+                  onDateChange={date => handleInputChange(field, date)} placeholder="Choose date"
+                  aria-invalid={!!errors[field]} aria-describedby={errors[field] ? `${field}-error` : undefined}
+                  className="bg-card px-2 text-xs" />
+                {errors[field] && <p id={`${field}-error`} role="alert" className="text-xs text-destructive">{errors[field]}</p>}
               </div>
-            </div>
+            ))}
           </div>
-
-          {/* Work Week Configuration */}
-          <WorkWeekSelector
-            weekendDays={formData.weekendDays}
-            onWeekendDaysChange={(days) => handleInputChange('weekendDays', days)}
-          />
-
-          {/* Holidays */}
+        </fieldset>
+        <div className="space-y-2">
+          <Label htmlFor="vacationStyle">Break preference</Label>
+          <Select value={formData.vacationStyle} onValueChange={value => handleInputChange('vacationStyle', value)}>
+            <SelectTrigger id="vacationStyle" className="bg-card"><SelectValue /></SelectTrigger>
+            <SelectContent>{Object.entries(VACATION_STYLE_LABELS).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}</SelectContent>
+          </Select>
+        </div>
+      </div>
+      <details className="schedule-details mt-6 border-t">
+        <summary className="flex items-center justify-between py-4 text-sm cursor-pointer gap-2">
+          <span>Regular days off</span>
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            {formData.weekendDays.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')}
+            <ChevronDown className="h-3.5 w-3.5 disclosure-chevron" />
+          </span>
+        </summary>
+        <div className="pb-4"><WorkWeekSelector weekendDays={formData.weekendDays}
+          onWeekendDaysChange={days => handleInputChange('weekendDays', days)} /></div>
+      </details>
+      <details className="schedule-details border-t border-b">
+        <summary className="flex items-center justify-between py-4 text-sm cursor-pointer gap-2">
+          <span>Holidays</span>
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            {formData.holidays.length || 'Optional'}
+            <ChevronDown className="h-3.5 w-3.5 disclosure-chevron" />
+          </span>
+        </summary>
+        <div className="space-y-4 pb-5">
+          <p className="text-xs text-muted-foreground leading-relaxed">Add any public or company holidays that are already paid days off.</p>
           <div className="space-y-2">
-            <Label htmlFor="holidays">National Holidays (optional)</Label>
-            <MultiDatePicker
-              dates={formData.holidays}
-              onDatesChange={(dates) => handleInputChange('holidays', dates)}
-              placeholder="Select national holidays"
-              maxDisplay={2}
-            />
-            <p className="text-sm text-muted-foreground">
-              Click to select multiple holiday dates from the calendar
-            </p>
+            <Label htmlFor="holidays" className="text-xs">Holiday dates</Label>
+            <MultiDatePicker id="holidays" dates={formData.holidays} onDatesChange={dates => handleInputChange('holidays', dates)}
+              placeholder="Add dates" maxDisplay={2} className="bg-card" />
           </div>
-
-          {/* Company Off Days */}
-          <div className="space-y-2">
-            <Label htmlFor="companyOffDays">Company Off Days (optional)</Label>
-            <MultiDatePicker
-              dates={formData.companyOffDays}
-              onDatesChange={(dates) => handleInputChange('companyOffDays', dates)}
-              placeholder="Select company off days"
-              maxDisplay={2}
-            />
-            <p className="text-sm text-muted-foreground">
-              Select additional company-specific off days (e.g., floating holidays, company closure days)
-            </p>
-          </div>
-
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <CalendarDays className="mr-2 h-4 w-4 animate-spin" />
-                Optimizing...
-              </>
-            ) : (
-              <>
-                <Calendar className="mr-2 h-4 w-4" />
-                Generate PTO Plan
-              </>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </details>
+      <Button type="submit" className="w-full mt-6 gap-2 h-11" disabled={isLoading}>
+        {isLoading ? <><Spinner />Finding breaks…</> : <>Find breaks<ArrowRight className="h-4 w-4 ml-auto" /></>}
+      </Button>
+    </form>
   );
 }
