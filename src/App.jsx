@@ -103,8 +103,8 @@ function App() {
       </header>
       <main className="mx-auto max-w-6xl px-5 sm:px-8 py-8 sm:py-10">
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Plan your time off</h1>
-          <p className="text-sm text-muted-foreground mt-2">Find where vacation days extend weekends and holidays.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Maximize your holidays</h1>
+          <p className="text-sm text-muted-foreground mt-2">Plan your time off</p>
         </div>
         <div className="planner-layout">
           <Suspense fallback={<div role="status"><Spinner />Loading planner…</div>}>
